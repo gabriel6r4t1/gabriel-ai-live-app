@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gabriel AI Live</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome para ícones de microfone e alto-falante -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        /* Define a fonte Inter para todo o corpo */
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(to right bottom, #f0f9ff, #e0f2fe); /* Gradiente de fundo mais suave */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 1.5rem; /* Ajuste o preenchimento para telas menores */
+        }
+        /* Estilos para a caixa de mensagem (substituindo alert) */
+        .message-box {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #28a745; /* Verde para sucesso */
+            color: white;
+            padding: 15px 25px; /* Aumentado o preenchimento */
+            border-radius: 12px; /* Mais arredondado */
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2); /* Sombra mais pronunciada */
+            z-index: 1000;
+            display: none; /* Inicia oculto */
+            animation: fadeInOut 4s forwards;
+            font-weight: 600; /* Mais negrito */
+            text-align: center;
+        }
+
+        .message-box.error {
+            background-color: #dc3545; /* Vermelho vibrante para erro */
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+            10% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            90% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+        }
+
+        /* Estilo para a área de chat */
+        #chatDisplay {
+            height: 400px; /* Altura fixa para a área de chat */
+            overflow-y: auto; /* Adiciona scroll vertical se o conteúdo exceder a altura */
+            scroll-behavior: smooth; /* Rolagem suave ao adicionar novas mensagens */
+            display: flex; /* Para usar flex-col no JS */
+            flex-direction: column; /* Para empilhar as mensagens */
+            gap: 10px; /* Espaçamento entre as mensagens */
+        }
+
+        /* Estilos para as bolhas de chat */
+        .message-bubble {
+            max-width: 85%; /* Largura máxima da bolha de mensagem */
+            padding: 12px 18px; /* Preenchimento interno */
+            border-radius: 18px; /* Cantos arredondados */
+            word-wrap: break-word; /* Quebra de linha para palavras longas */
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); /* Sombra suave */
+            opacity: 0; /* Para animação de fade-in */
+            transform: translateY(20px); /* Para animação de slide-up */
+            animation: fadeInSlideUp 0.3s ease-out forwards;
+        }
+
+        .user-message {
+            background-color: #3b82f6; /* Azul para o utilizador */
+            color: white;
+            align-self: flex-end; /* Alinha a mensagem do utilizador à direita */
+            border-bottom-right-radius: 4px; /* Pequeno ajuste no canto para um visual de bolha */
+        }
+
+        .ai-message {
+            background-color: #f1f5f9; /* Cinza muito claro para a IA */
+            color: #334155; /* Texto escuro para a IA */
+            align-self: flex-start; /* Alinha a mensagem da IA à esquerda */
+            border-bottom-left-radius: 4px; /* Pequeno ajuste no canto para um visual de bolha */
+        }
+
+        /* Estilos para o botão do microfone quando ativo */
+        .microphone-active {
+            animation: pulse-microphone 1s infinite alternate;
+            background-color: #ef4444 !important; /* Vermelho para indicar gravação */
+        }
+
+        @keyframes pulse-microphone {
+            0% { transform: scale(1) translateY(-50%); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            100% { transform: scale(1.05) translateY(-50%); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+        }
+
+        @keyframes fadeInSlideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-2xl border border-gray-100 transform transition-all duration-300 hover:scale-[1.005]">
+        <h1 class="text-4xl font-extrabold text-center text-gray-800 mb-8 tracking-tight">Gabriel AI Live ✨</h1>
+
+        <!-- Área de visualização do chat -->
+        <div id="chatDisplay" class="p-5 bg-gray-50 border border-gray-200 rounded-2xl shadow-inner mb-6">
+            <p class="text-gray-600 italic text-center">A sua conversa com a IA aparecerá aqui.</p>
+        </div>
+
+        <!-- Contêiner para input de texto e botão de microfone -->
+        <div class="relative flex items-center mt-6">
+            <textarea
+                id="promptInput"
+                class="w-full p-4 pr-16 border border-gray-300 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-300 focus:border-blue-400 text-gray-800 resize-y min-h-[60px] max-h-[150px] shadow-sm transition-all duration-200"
+                placeholder="Digite a sua pergunta ou clique no microfone para falar..."
+                rows="2"
+            ></textarea>
+            <button
+                id="micButton"
+                class="absolute right-3 top-1/2 -translate-y-1/2 bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-full shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                title="Falar com a IA"
+            >
+                <i class="fas fa-microphone text-lg"></i>
+            </button>
+        </div>
+
+
+        <!-- Botão para enviar a solicitação -->
+        <button
+            id="generateButton"
+            class="w-full mt-5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-3 px-6 rounded-xl transition duration-300 ease-in-out transform hover:scale-105 shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-blue-300"
+        >
+            Gerar Resposta da IA 🚀
+        </button>
+
+        <!-- Indicador de carregamento -->
+        <div id="loadingIndicator" class="mt-6 text-center text-gray-500 hidden">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-t-4 border-blue-500 border-opacity-75"></div>
+            <p class="mt-3 text-lg font-medium">A gerar resposta, por favor aguarde...</p>
+        </div>
+    </div>
+
+    <!-- Caixa de mensagem flutuante -->
+    <div id="messageBox" class="message-box"></div>
+
+    <script>
+        // Função para exibir mensagens personalizadas (substituindo alert)
+        function showMessage(message, type = 'success') {
+            const messageBox = document.getElementById('messageBox');
+            messageBox.textContent = message;
+            messageBox.className = 'message-box'; // Reseta classes
+            if (type === 'error') {
+                messageBox.classList.add('error');
+            }
+            messageBox.style.display = 'block';
+            setTimeout(() => {
+                messageBox.style.display = 'none';
+            }, 4000); // A mensagem desaparece após 4 segundos
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const promptInput = document.getElementById('promptInput');
+            const generateButton = document.getElementById('generateButton');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const chatDisplay = document.getElementById('chatDisplay');
+            const micButton = document.getElementById('micButton');
+
+            // !!! IMPORTANTE: SUA CHAVE DA API AQUI. CUIDADO ONDE VOCÊ COMPARTILHA ESTE CÓDIGO. !!!
+            // Para uso local e testes, você pode colocar sua chave diretamente aqui.
+            // Para qualquer aplicação pública ou de produção, use um backend para proteger sua chave.
+            const apiKey = "AIzaSyBdaGixboQ7XUgRoDsEFXfD8an92vkijVM"; // Substitua pela sua chave REAL
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+            // Array para armazenar o histórico do chat
+            let chatHistory = [];
+
+            // Variáveis para Speech Recognition (Reconhecimento de Fala)
+            let recognition;
+            let isListening = false;
+
+            // Função para inicializar o SpeechRecognition
+            function initSpeechRecognition() {
+                // Verifica se a API é suportada pelo navegador
+                if ('webkitSpeechRecognition' in window) {
+                    recognition = new webkitSpeechRecognition();
+                    recognition.continuous = false; // Define se a gravação é contínua (true para ditado longo, false para frases curtas)
+                    recognition.interimResults = true; // Permite resultados provisórios enquanto o utilizador fala
+                    recognition.lang = 'pt-BR'; // Define o idioma para Português (Brasil)
+
+                    recognition.onstart = () => {
+                        isListening = true;
+                        micButton.classList.add('microphone-active'); // Adiciona animação visual ao botão
+                        micButton.querySelector('i').classList.replace('fa-microphone', 'fa-microphone-slash'); // Muda o ícone
+                        promptInput.placeholder = 'A ouvir... Fale agora...';
+                        console.log('A ouvir...');
+                    };
+
+                    recognition.onresult = (event) => {
+                        let interimTranscript = '';
+                        let finalTranscript = '';
+
+                        // Percorre todos os resultados para construir o texto final e provisório
+                        for (let i = event.resultIndex; i < event.results.length; ++i) {
+                            const transcript = event.results[i][0].transcript;
+                            if (event.results[i].isFinal) {
+                                finalTranscript += transcript;
+                            } else {
+                                interimTranscript += transcript;
+                            }
+                        }
+
+                        // Atualiza a caixa de texto com o resultado provisório ou final
+                        promptInput.value = finalTranscript || interimTranscript;
+                    };
+
+                    recognition.onerror = (event) => {
+                        isListening = false;
+                        micButton.classList.remove('microphone-active'); // Remove animação
+                        micButton.querySelector('i').classList.replace('fa-microphone-slash', 'fa-microphone'); // Volta ao ícone original
+                        promptInput.placeholder = 'Erro de reconhecimento de fala. Tente novamente.';
+                        console.error('Erro de reconhecimento de fala:', event.error);
+
+                        // Mensagem de erro mais explícita para o utilizador
+                        let errorMessage = 'Erro de voz: O acesso ao microfone foi negado ou não permitido.';
+                        if (event.error === 'not-allowed') {
+                            errorMessage += ' Por favor, verifique as permissões do navegador para o microfone. Se estiver a abrir o ficheiro HTML diretamente (file://), considere usar um servidor web local (http://localhost) para ativar este recurso por motivos de segurança.';
+                        } else {
+                            errorMessage += ` Detalhes: ${event.error}`;
+                        }
+                        showMessage(errorMessage, 'error');
+                    };
+
+                    recognition.onend = () => {
+                        isListening = false;
+                        micButton.classList.remove('microphone-active'); // Remove animação
+                        micButton.querySelector('i').classList.replace('fa-microphone-slash', 'fa-microphone'); // Volta ao ícone original
+                        promptInput.placeholder = 'Digite a sua pergunta ou clique no microfone para falar...';
+                        console.log('Reconhecimento de fala terminou.');
+                        // Se houver texto final e não for vazio, enviar automaticamente
+                        if (promptInput.value.trim() !== '') {
+                            generateButton.click(); // Simula o clique no botão Gerar Resposta
+                        }
+                    };
+
+                } else {
+                    micButton.disabled = true; // Desabilita o botão se a API não for suportada
+                    micButton.title = 'Reconhecimento de fala não suportado neste navegador.';
+                    showMessage('Reconhecimento de fala não suportado no seu navegador.', 'error');
+                    console.warn('Web Speech API (SpeechRecognition) não suportada neste navegador.');
+                }
+            }
+
+            // Função para adicionar uma mensagem ao display do chat
+            function addMessageToChat(sender, text) {
+                // Remove a mensagem inicial "A sua conversa com a IA aparecerá aqui."
+                if (chatDisplay.querySelector('p.italic')) {
+                    chatDisplay.innerHTML = '';
+                }
+
+                const messageDiv = document.createElement('div');
+                // Adiciona a classe de animação para novas mensagens
+                messageDiv.classList.add('message-bubble', 'shadow-sm', 'opacity-0', 'translate-y-20');
+                // Força o reflow para garantir que a animação ocorra
+                void messageDiv.offsetWidth;
+                messageDiv.style.animation = 'fadeInSlideUp 0.3s ease-out forwards';
+
+
+                const messageP = document.createElement('p');
+                messageP.textContent = text;
+
+                // Botão de leitura para mensagens da IA
+                if (sender === 'ai') {
+                    const readButton = document.createElement('button');
+                    readButton.classList.add('ml-3', 'text-blue-600', 'hover:text-blue-800', 'focus:outline-none', 'flex-shrink-0');
+                    readButton.innerHTML = '<i class="fas fa-volume-up"></i>';
+                    readButton.title = 'Ouvir resposta';
+                    readButton.addEventListener('click', () => {
+                        speakText(text);
+                    });
+                    // Adiciona o texto e o botão em um flex container para alinhamento
+                    const contentContainer = document.createElement('div');
+                    contentContainer.classList.add('flex', 'items-start', 'gap-2'); // Adicionado gap para espaço
+                    contentContainer.appendChild(messageP);
+                    contentContainer.appendChild(readButton);
+                    messageDiv.appendChild(contentContainer);
+                } else {
+                    messageDiv.appendChild(messageP);
+                }
+
+
+                if (sender === 'user') {
+                    messageDiv.classList.add('user-message', 'ml-auto'); // ml-auto para alinhar à direita
+                } else {
+                    messageDiv.classList.add('ai-message', 'mr-auto'); // mr-auto para alinhar à esquerda
+                }
+
+                chatDisplay.appendChild(messageDiv);
+
+                // Rolagem automática para o final do chat
+                chatDisplay.scrollTop = chatDisplay.scrollHeight;
+            }
+
+            // Função para sintetizar texto em fala (Text-to-Speech)
+            function speakText(text) {
+                if ('speechSynthesis' in window) {
+                    // Cancela qualquer fala anterior para evitar sobreposição
+                    window.speechSynthesis.cancel();
+
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = 'pt-BR'; // Define o idioma para Português (Brasil)
+                    utterance.pitch = 1; // Tom (0 a 2) - 1 é o padrão
+                    utterance.rate = 1; // Velocidade (0.1 a 10) - 1 é o padrão
+
+                    // Opcional: tentar escolher uma voz masculina em português do Brasil
+                    const voices = window.speechSynthesis.getVoices();
+                    let selectedVoice = null;
+
+                    // Tenta encontrar uma voz masculina primeiro
+                    // Nomes comuns para vozes masculinas em pt-BR podem incluir "Google português do Brasil Male"
+                    // ou simplesmente ter um nome masculino associado.
+                    // A disponibilidade e os nomes exatos das vozes variam muito entre navegadores e sistemas operativos.
+                    const maleVoiceKeywords = ['male', 'masculino', 'man', 'joao', 'carlos']; // Exemplos de palavras-chave
+                    for (const voice of voices) {
+                        if (voice.lang === 'pt-BR') {
+                            const voiceNameLower = voice.name.toLowerCase();
+                            if (maleVoiceKeywords.some(keyword => voiceNameLower.includes(keyword))) {
+                                selectedVoice = voice;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Se não encontrar uma voz masculina específica, tenta encontrar qualquer voz em pt-BR
+                    if (!selectedVoice) {
+                        selectedVoice = voices.find(voice => voice.lang === 'pt-BR');
+                    }
+                    
+                    if (selectedVoice) {
+                        utterance.voice = selectedVoice;
+                        console.log('Voz selecionada:', selectedVoice.name);
+                    } else {
+                        console.warn('Nenhuma voz em português do Brasil encontrada ou selecionada.');
+                    }
+
+
+                    utterance.onstart = () => {
+                        console.log('A IA está a falar...');
+                        // Poderia adicionar uma indicação visual de que a IA está a falar
+                    };
+
+                    utterance.onend = () => {
+                        console.log('A IA terminou de falar.');
+                        // Remover indicação visual
+                    };
+
+                    utterance.onerror = (event) => {
+                        console.error('Erro na síntese de fala:', event.error);
+                        showMessage(`Erro de voz da IA: ${event.error}`, 'error');
+                    };
+
+                    window.speechSynthesis.speak(utterance);
+                } else {
+                    showMessage('Síntese de fala não suportada neste navegador.', 'error');
+                    console.warn('Web Speech API (Síntese de Fala) não suportada neste navegador.');
+                }
+            }
+
+
+            // Inicializa o reconhecimento de fala ao carregar a página
+            initSpeechRecognition();
+
+            // Event listener para o botão do microfone
+            micButton.addEventListener('click', () => {
+                if (recognition) {
+                    if (isListening) {
+                        recognition.stop(); // Para de ouvir se já estiver a ouvir
+                    } else {
+                        promptInput.value = ''; // Limpa o input antes de começar a ouvir
+                        recognition.start(); // Inicia a escuta
+                    }
+                }
+            });
+
+            // Event listener para o botão de gerar resposta
+            generateButton.addEventListener('click', async () => {
+                const prompt = promptInput.value.trim();
+
+                if (!prompt) {
+                    showMessage('Por favor, digite uma pergunta ou solicitação antes de gerar.', 'error');
+                    return;
+                }
+
+                // Adiciona a mensagem do utilizador ao histórico e exibe
+                addMessageToChat('user', prompt);
+                chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                promptInput.value = ''; // Limpa a caixa de texto após enviar
+
+                loadingIndicator.classList.remove('hidden');
+                generateButton.disabled = true;
+
+                // Cancela qualquer fala em andamento antes de enviar nova requisição
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                }
+
+                try {
+                    const payload = { contents: chatHistory };
+
+                    // A requisição é feita diretamente para a API Gemini (frontend)
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(`Erro na API: ${errorData.error.message || response.statusText}`);
+                    }
+
+                    const result = await response.json();
+
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        const text = result.candidates[0].content.parts[0].text;
+
+                        // Adiciona a resposta da IA ao histórico e exibe
+                        addMessageToChat('ai', text);
+                        chatHistory.push({ role: "model", parts: [{ text: text }] }); // 'model' é o papel da IA na API Gemini
+                        showMessage('Resposta gerada com sucesso!', 'success');
+
+                        // *** LINHA ALTERADA: Não chama speakText(text) aqui para evitar reprodução automática ***
+                        // Para reproduzir a voz, clique no ícone de alto-falante ao lado da mensagem da IA.
+
+                    } else {
+                        const errorMessage = 'Não foi possível obter uma resposta. A IA pode não ter gerado conteúdo.';
+                        addMessageToChat('ai', errorMessage); // Exibe erro também no chat
+                        showMessage('Erro: Estrutura de resposta inesperada ou conteúdo vazio.', 'error');
+                    }
+                } catch (error) {
+                    console.error('Erro ao chamar a API Gemini:', error);
+                    const errorMessage = `Ocorreu um erro ao comunicar com a IA: ${error.message}. Por favor, verifique a sua chave de API ou tente novamente.`;
+                    addMessageToChat('ai', errorMessage); // Exibe erro também no chat
+                    showMessage(`Erro ao gerar resposta: ${error.message}`, 'error');
+                } finally {
+                    loadingIndicator.classList.add('hidden');
+                    generateButton.disabled = false;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
